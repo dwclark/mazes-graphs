@@ -1,0 +1,3 @@
+moduleName = character-module
+moduleVersion = 1.0
+extensionClasses = com.github.dwclark.MazeExtension
