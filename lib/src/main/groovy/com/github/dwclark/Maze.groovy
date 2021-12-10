@@ -126,51 +126,67 @@ class Maze {
         return ret
     }
 
-    private void nextPaths(Path current, IntOpenHashSet visited, PriorityQueue<Path> pending) {
-        List<Path> ret = []
-        boolean doLogging = false
-        if(current.hops == 'ixzpnfm') {
-            println "#################### Found ixzpnfm"
-            doLogging = true
+    static class Path implements Comparable<Path> {
+        final String visits
+        final Vertex vertex
+        final int distance
+
+        Path(Vertex vertex, int distance) {
+            this(vertex, '', distance)
+        }
+
+        Path(Vertex vertex, String visits, int distance) {
+            this.vertex = vertex
+            this.visits = visits
+            this.distance = distance
+        }
+
+        Path plus(PossiblePath pp) {
+            return new Path(vertex + pp, visits + pp.two, distance + pp.distance)
         }
         
-        List<PossiblePath> possiblePaths = pathCache[current.currentHop]
+        @Override
+        int compareTo(Path other) {
+            return Integer.compare(distance, other.distance)
+        }
+        
+        @Override
+        String toString() {
+            return "Path(vertex: ${vertex} distance: ${distance}, visits: ${visits})"
+        }
+    }
+    
+    private void addPaths(Path current, Set<Vertex> visited, PriorityQueue<Path> pending) {
+        Vertex vertex = current.vertex
+        List<PossiblePath> possiblePaths = pathCache[vertex.id]
         for(int i = 0; i < possiblePaths.size(); ++i) {
             PossiblePath pp = possiblePaths.get(i)
-            if(!current.visited(pp.two) && //not alread visited
-               current.keys.canOpen(pp.doors) && //we can open everything on the way
-               !current.hasInterveningUnvisited(pp.keysOnWay)) { //can't pass through unvisited keys
-                Path path = current.nextHop(pp)
-                if(doLogging) {
-                    println "#################### Next Path ${path}"
-                }
-                if(!pending.contains(path.node)) {
-                    if(doLogging) {
-                        println "#################### Adding ${path}"
-                    }
-                    
-                    pending.add(current.nextHop(pp))
+            if(!vertex.keys.hasKey(pp.two) && //not already visited
+               vertex.keys.canOpen(pp.doors) && //we can open everything on the way
+               !vertex.hasInterveningUnvisited(pp.keysOnWay)) { //can't pass through unvisited keys
+                Path newPath = current + pp
+                if(!visited.contains(newPath.vertex)) {
+                    pending.add(newPath)
                 }
             }
         }
     }
-
+    
     public Path shortest() {
         PriorityQueue<Path> pending = new PriorityQueue<Path>(0xFFFF)
-        pending.add(new Path('@', 0))
+        pending.add(new Path(new Vertex('@' as char, 0), 0))
         Path current = null
         Integer neededKeys = keys.join('').toKey()
-        IntOpenHashSet visited = new IntOpenHashSet()
+        Set<Vertex> visited = new HashSet<>()
         
         while((current = pending.poll()) != null) {
-            println "testing ${current}"
-            if(current.keys == neededKeys) {
+            Vertex v = current.vertex
+            if(v.keys == neededKeys) {
                 return current
             }
             
-            if(visited.add(current.node)) { //pq does not de-duplicate
-                nextPaths(current, visited, pending)
-            }
+            visited.add(v)
+            addPaths(current, visited, pending)
         }
 
         return null

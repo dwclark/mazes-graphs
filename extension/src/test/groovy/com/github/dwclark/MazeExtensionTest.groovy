@@ -54,4 +54,18 @@ class MazeExtensionTest extends Specification {
         0.canOpen('')
         'abcde'.toKey().canOpen('')
     }
+
+    def 'test has keys'() {
+        expect:
+        'abc'.toKey().hasAllKeys('abc')
+        !'@'.toKey().hasAllKeys('a')
+        'abc'.toKey().hasKey('a' as char)
+        !'abc'.toKey().hasKey('d')
+        !'abc'.toKey().hasAllKeys('abcde')
+    }
+
+    def 'test add key'(){
+        expect:
+        'abc'.toKey().addKey('d' as char) == 'abcd'.toKey()
+    }
 }

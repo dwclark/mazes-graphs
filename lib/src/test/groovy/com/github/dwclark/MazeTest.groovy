@@ -117,7 +117,6 @@ class MazeTest extends Specification {
         
         expect:
         path.distance == 8
-        path.hops == '@ab'
     }
 
     @Ignore
@@ -139,7 +138,7 @@ class MazeTest extends Specification {
 """.trim()
 
     @Ignore
-    def 'test solve s3'(){
+    def 'test solve s3'() {
         setup:
         def maze = new Maze(s3, true)
         def path = maze.shortest()
@@ -175,7 +174,7 @@ class MazeTest extends Specification {
 ########################
 """.trim()
 
-    @Ignore
+    //@Ignore
     def 'test solve s5'() {
         setup:
         def maze = new Maze(s5, true)
@@ -185,9 +184,6 @@ class MazeTest extends Specification {
         path.distance == 81
     }
 
-    //bfs solution arrived at ixzpnfmtaejvrcyqwoldksubgh
-    //we stop at    ixzpnfm (1132)
-    //why, we found ixpzfnm (1132) before, therefore we did not add, therefore no children were explored
     def 'test solve part 1'() {
         setup:
         String s = MazeTest.classLoader.getResourceAsStream('part1.txt').text

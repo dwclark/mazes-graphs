@@ -130,6 +130,44 @@ class MazeExtension {
         return ret
     }
 
+    static String keyToString(Integer k) {
+        int theKey = k.intValue()
+        StringBuilder sb = new StringBuilder()
+        for(char c = KEY_LOWER; c <= KEY_UPPER; ++c) {
+            if((_key(c) & theKey) != 0) {
+                sb.append(c)
+            }
+        }
+
+        return sb.toString()
+    }
+
+    static int getNumKeys(Integer k) {
+        return Integer.bitCount(k.intValue())
+    }
+
+    static boolean hasKey(Integer i, Character c) {
+        int otherKey = _key(c.charValue())
+        return (i.intValue() & otherKey) != 0
+    }
+
+    static boolean hasKey(Integer i, String s) {
+        assert s.length() == 1
+        int otherKey = _key(s.charAt(0))
+        return (i.intValue() & otherKey) != 0
+    }
+
+    static boolean hasAllKeys(Integer theKey, String s) {
+        int me = theKey.intValue()
+        int them = toKey(s).intValue();
+        return (me & them) == them
+    }
+
+    static Integer addKey(Integer i, Character c) {
+        int otherKey = _key(c.charValue())
+        return Integer.valueOf(i.intValue() | otherKey)
+    }
+
     static boolean canOpen(Integer key, Character c) {
         assert isDoor(c)
         int asKey = toKey(c.toLowerCase())
