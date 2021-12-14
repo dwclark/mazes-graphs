@@ -68,4 +68,13 @@ class MazeExtensionTest extends Specification {
         expect:
         'abc'.toKey().addKey('d' as char) == 'abcd'.toKey()
     }
+
+    def 'test key count'() {
+        expect:
+        'abc'.toKey().numKeys == 3
+        'abcdefg'.toKey().numKeys == 7
+        ''.toKey().numKeys == 0
+        ('abc'.toKey() | 'def'.toKey()).numKeys == 6
+        ('abc'.toKey() | 'cde'.toKey()).numKeys == 5
+    }
 }

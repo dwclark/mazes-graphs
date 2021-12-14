@@ -12,12 +12,13 @@ class Vertex {
         this.keys = keys
     }
 
-    Vertex plus(PossiblePath pp) {
-        return new Vertex(pp.two, keys.addKey(pp.two))
+    public Vertex(String id, String keys) {
+        this.id = id as Character
+        this.keys = keys.toKey()
     }
-    
-    boolean hasInterveningUnvisited(String keysOnWay) {
-        return !keys.hasAllKeys(keysOnWay)
+
+    Vertex plus(Edge e) {
+        return new Vertex(e.destination, keys.addKey(e.destination))
     }
 
     @Override

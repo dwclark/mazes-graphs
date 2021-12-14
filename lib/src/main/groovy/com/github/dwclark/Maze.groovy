@@ -1,14 +1,17 @@
 package com.github.dwclark
 
 import groovy.transform.CompileStatic
+import groovy.transform.TailRecursive
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet
 import static MazeExtension.encode
 
 @CompileStatic
 class Maze {
+    final static List<int[]> TO_ADD = List.<int[]>of([-1,0] as int[], [0,-1] as int[],
+                                                     [1,0] as int[],  [0,1] as int[])
     final String[] contents
     final Map<Character,Long> ofInterest = [:]
-    final Map<Character,List<PossiblePath>> pathCache = [:]
+    final Map<Character,List<Edge>> edgeCache = [:]
     
     Maze(List<String> list, boolean simplify) {
         this(list as String[], simplify)
@@ -17,7 +20,7 @@ class Maze {
     Maze(String[] contents, boolean simplify) {
         this.contents = simplify ? _deadEndFill(contents) : contents
         this.ofInterest = populateOfInterest().asImmutable()
-        this.pathCache = allPossible().asImmutable()
+        this.edgeCache = allEdges().asImmutable()
     }
 
     Maze(String s, boolean simplify) {
@@ -61,88 +64,69 @@ class Maze {
         return new Maze(contents, true)
     }
 
-    private boolean canAdd(Long val) {
-        return (0 <= val.v && val.v < contents.length &&
-                0 <= val.h && val.h < contents[0].length() &&
-                !getAt(val).wall)
+    private void eachNeighbor(Long location, Closure c) {
+        eachNeighbor(location.v, location.h, c)
     }
+    
+    private void eachNeighbor(int v, int h, Closure c) {
+        TO_ADD.each { int[] toAdd ->
+            int newV = v + toAdd[0];
+            int newH = h + toAdd[1];
 
-    public List<Long> neighbors(Long val) {
-        List<Long> tmp = new ArrayList<>(4)
-        int v = val.v
-        int h = val.h
-
-        Long up = encode(v-1, h)
-        if(canAdd(up))
-            tmp.add(up)
-
-        Long down = encode(v+1, h)
-        if(canAdd(down))
-            tmp.add(down)
-
-        Long left = encode(v, h-1)
-        if(canAdd(left))
-            tmp.add(left)
-
-        Long right = encode(v, h+1)
-        if(canAdd(right))
-            tmp.add(right)
-
-        return tmp
-    }
-
-    private void _allPossible(Set<Long> visited, List<PossiblePath> paths,
-                              Long location, PossiblePath path) {
-        PossiblePath current = path
-        if(current.complete) {
-            paths.add(current)
-            current = current.continuing()
-        }
-
-        List<Long> neighbors = neighbors(location)
-        for(int i = 0; i < neighbors.size(); ++i) {
-            Long n = neighbors[i]
-            if(visited.add(n)) {
-                _allPossible(visited, paths, n, current + getAt(n))
+            if(0 <= newV && newV < contents.length &&
+               0 <= newH && newH < contents[0].length() &&
+               !at(newV, newH).wall) {
+                c.call(encode(newV, newH))
             }
         }
     }
 
-    public List<PossiblePath> allPossible(Character from) {
-        List<PossiblePath> ret = []
-        Long startAt = getAt(from)
-        Set<Long> visited = [ startAt ] as Set<Long>;
+    public List<Edge> allEdges(Character from) {
+        List<Edge> ret = []
+        Deque<Edge> stack = new ArrayDeque<>()
+        Edge starting = Edge.starting(from, getAt(from))
+        Set<Long> visited = new HashSet<>()
+        stack.push(starting)
+
+        while(stack.size() != 0) {
+            Edge edge = stack.pop()
+            if(edge.complete) {
+                ret.add(edge.complete())
+                edge = edge.continuing()
+            }
+            
+            Long location = edge.destinationLocation
+            visited.add(location)
+            eachNeighbor(location) { Long neighbor ->
+                if(!visited.contains(neighbor)) {
+                    stack.push(edge.nextEdge(getAt(neighbor), neighbor))
+                }
+            }
+        }
         
-        _allPossible(visited, ret, startAt, PossiblePath.starting(from))
         return ret.asImmutable()
     }
     
-    public Map<Character,List<PossiblePath>> allPossible() {
-        Map<Character,List<PossiblePath>> ret = [:]
+    public Map<Character,List<Edge>> allEdges() {
+        Map<Character,List<Edge>> ret = [:]
         (starts + keys).each { Character c ->
-            ret[c] = allPossible(c)
+            ret[c] = allEdges(c)
         }
-
+        
         return ret
     }
 
     static class Path implements Comparable<Path> {
-        final String visits
         final Vertex vertex
         final int distance
 
         Path(Vertex vertex, int distance) {
-            this(vertex, '', distance)
-        }
-
-        Path(Vertex vertex, String visits, int distance) {
             this.vertex = vertex
-            this.visits = visits
             this.distance = distance
         }
 
-        Path plus(PossiblePath pp) {
-            return new Path(vertex + pp, visits + pp.two, distance + pp.distance)
+        Path plus(Edge e) {
+            return new Path(vertex + e, distance + e.distance)
         }
         
         @Override
@@ -152,19 +136,33 @@ class Maze {
         
         @Override
         String toString() {
-            return "Path(vertex: ${vertex} distance: ${distance}, visits: ${visits})"
+            return "Path(vertex: ${vertex} distance: ${distance})"
+        }
+
+        @Override
+        boolean equals(Object o) {
+            if(!(o instanceof Path)) {
+                return false
+            }
+            
+            Path rhs = (Path) o
+            return distance == rhs.distance && vertex == rhs.vertex
+        }
+
+        @Override
+        int hashCode() {
+            return 31 * distance + vertex.hashCode()
         }
     }
     
-    private void addPaths(Path current, Set<Vertex> visited, PriorityQueue<Path> pending) {
+    private void addEdges(Path current, Set<Vertex> visited, NoDupPQ<Path> pending) {
         Vertex vertex = current.vertex
-        List<PossiblePath> possiblePaths = pathCache[vertex.id]
-        for(int i = 0; i < possiblePaths.size(); ++i) {
-            PossiblePath pp = possiblePaths.get(i)
-            if(!vertex.keys.hasKey(pp.two) && //not already visited
-               vertex.keys.canOpen(pp.doors) && //we can open everything on the way
-               !vertex.hasInterveningUnvisited(pp.keysOnWay)) { //can't pass through unvisited keys
-                Path newPath = current + pp
+        List<Edge> possibleEdges = edgeCache[vertex.id]
+        for(int i = 0; i < possibleEdges.size(); ++i) {
+            Edge e = possibleEdges.get(i)
+            
+            if(e.legal(vertex)) {
+                Path newPath = current + e
                 if(!visited.contains(newPath.vertex)) {
                     pending.add(newPath)
                 }
@@ -173,7 +171,7 @@ class Maze {
     }
     
     public Path shortest() {
-        PriorityQueue<Path> pending = new PriorityQueue<Path>(0xFFFF)
+        NoDupPQ<Path> pending = new NoDupPQ<>();
         pending.add(new Path(new Vertex('@' as char, 0), 0))
         Path current = null
         Integer neededKeys = keys.join('').toKey()
@@ -186,9 +184,9 @@ class Maze {
             }
             
             visited.add(v)
-            addPaths(current, visited, pending)
+            addEdges(current, visited, pending)
         }
-
+        
         return null
     }
 

@@ -54,14 +54,15 @@ class MazeTest extends Specification {
         maze.toString() == simplified2
     }
 
-    def 'test populate possible paths'() {
+    def 'test populate edges'() {
         setup:
         def maze = new Maze(s1, false)
-        def paths = maze.allPossible('@' as Character)
+        def edges = maze.allEdges('@' as Character)
 
         expect:
-        paths.find { p -> p.two == 'b' && p.distance == 4 && p.doors == 'A' }
-        paths.find { p -> p.two == 'a' && p.distance == 2 && p.doors == '' }
+        edges.size() == 2
+        edges.find { e -> e.destination == 'b' && e.distance == 4 && e.doors == 'A' }
+        edges.find { e -> e.destination == 'a' && e.distance == 2 && e.doors == '' }
     }
 
     String beast = """
@@ -76,40 +77,40 @@ class MazeTest extends Specification {
 #################
 """.trim()
 
-    def 'test beast possible paths'() {
+    def 'test beast edges'() {
         setup:
         def maze = new Maze(beast, false)
-        def paths = maze.allPossible('@' as Character)
+        def edges = maze.allEdges('@' as Character)
+        def fromk = maze.allEdges('k' as Character)
+        
+        expect:
+        'bfag'.every { c -> edges.find { e -> e.destination == c && e.distance == 3 && e.doors == '' } }
+        'cedh'.every { c -> edges.find { e -> e.destination == c && e.distance == 5 && e.doors == '' } }
+        edges.find { e -> e.destination == 'i' && e.distance == 10 && e.doors == 'G' && e.keysOnWay == 'c' }
+        edges.size() == 'abcdefghijklmnop'.length()
+        'abcdefghijklmnop'.every { maze.allEdges(it as Character).size() == 15 }
+        fromk.find { e -> e.destination == 'p' && e.distance == 18 && e.doors == 'EH' && e.keysOnWay == 'ae' }
+        fromk.find { e -> e.destination == 'm' && e.distance == 16 && e.doors == 'CE' && e.keysOnWay == 'ah' }
+    }
+
+    def 'test legal edges'() {
+        setup:
+        def maze = new Maze(beast, true)
+        def fromjTok = maze.allEdges('j' as Character).find { e -> e.destination == 'k' }
+        def fromaTof = maze.allEdges('a' as Character).find { e -> e.destination == 'f' }
 
         expect:
-        'bfag'.every { c -> paths.find { p -> p.two == c && p.distance == 3 && p.doors == '' } }
-        'cedh'.every { c -> paths.find { p -> p.two == c && p.distance == 5 && p.doors == '' } }
-        [ ['i','G'], ['p','H'], ['l','F'], ['m','C'] ].every { pair ->
-            paths.find { p -> p.two == pair[0] && p.distance == 10 && p.doors == pair[1] }
-        }
-        [ ['j','A'], ['o','D'], ['k','E'], ['n','B'] ].every { pair ->
-            paths.find { p -> p.two == pair[0] && p.distance == 8 && p.doors == pair[1] }
-        }
+        fromjTok.legal(new Vertex('j', 'abe'))
+        !fromjTok.legal(new Vertex('j', 'ae'))
+        !fromjTok.legal(new Vertex('j', 'ab'))
+        !fromjTok.legal(new Vertex('j', 'be'))
+        !fromjTok.legal(new Vertex('j', 'abek'))
+
+        fromaTof.legal(new Vertex('a', ''))
+        !fromaTof.legal(new Vertex('a', 'f'))
+        fromaTof.legal(new Vertex('a', 'ceb'))
     }
-
-    def 'test beast possible paths from p'() {
-        setup:
-        def maze = new Maze(beast, false)
-        def paths = maze.allPossible('p' as Character)
-
-        expect:
-        paths.find { p -> p.two == 'm' && p.distance == 20 && p.doors == 'CH' }
-        paths.find { p -> p.two == 'o' && p.distance == 16 && p.doors == 'DH' }
-    }
-
-    def 'test beast all possible paths'() {
-        setup:
-        def maze = new Maze(beast, false)
-        17 == maze.pathCache.size()
-        maze.pathCache.every { c, list -> list.size() == 16 || list.size() == 15 }
-    }
-
-    @Ignore
+    
     def 'test solve simple'() {
         setup:
         def maze = new Maze(s1, true)
@@ -119,7 +120,6 @@ class MazeTest extends Specification {
         path.distance == 8
     }
 
-    @Ignore
     def 'test solve beast'() {
         setup:
         def maze = new Maze(beast, true)
@@ -137,7 +137,6 @@ class MazeTest extends Specification {
 ########################
 """.trim()
 
-    @Ignore
     def 'test solve s3'() {
         setup:
         def maze = new Maze(s3, true)
@@ -155,7 +154,6 @@ class MazeTest extends Specification {
 ########################
 """.trim()
 
-    @Ignore
     def 'test solve s4'() {
         setup:
         def maze = new Maze(s4, true)
@@ -174,7 +172,6 @@ class MazeTest extends Specification {
 ########################
 """.trim()
 
-    //@Ignore
     def 'test solve s5'() {
         setup:
         def maze = new Maze(s5, true)
@@ -187,20 +184,10 @@ class MazeTest extends Specification {
     def 'test solve part 1'() {
         setup:
         String s = MazeTest.classLoader.getResourceAsStream('part1.txt').text
-        def maze = new Maze(s, false)
-        def path = maze.shortest()
-        println path.distance
-    }
-
-    @Ignore
-    def 'test path cache'() {
-        setup:
-        String s = MazeTest.classLoader.getResourceAsStream('part1.txt').text
         def maze = new Maze(s, true)
-        println maze
-        println()
-        maze.pathCache.each { n, paths ->
-            println "For $n:"
-            paths.eachWithIndex { path, i -> println "    ${i+1}: ${path}" } }
+        def path = maze.shortest()
+
+        expect:
+        path.distance == 5068
     }
 }
